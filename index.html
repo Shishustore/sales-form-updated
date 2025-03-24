@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        input, select, button, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        textarea {
+            resize: vertical;
+            height: 80px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #search-results, #category-results {
+            background-color: white;
+            border: 1px solid #ddd;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        #search-results div, #category-results div {
+            padding: 10px;
+            cursor: pointer;
+        }
+        #search-results div:hover, #category-results div:hover {
+            background-color: #f1f1f1;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            border: 1px solid #ddd;
+        }
+        .remove-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .remove-btn:hover {
+            background-color: #da190b;
+        }
+        .order-item input[type="number"] {
+            width: 80px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sales Form</h1>
+    
+    <!-- Category Search -->
+    <input type="text" id="category-search" placeholder="Search for a category...">
+    <div id="category-results"></div>
+    
+    <!-- Product Search -->
+    <input type="text" id="product-search" placeholder="Search for a product..." disabled>
+    <div id="search-results"></div>
+    
+    <!-- Size Selection -->
+    <select id="size-select">
+        <option value="">Select Size</option>
+    </select>
+    
+    <!-- Item Discount -->
+    <input type="number" id="item-discount" placeholder="Item Discount %" min="0" max="100">
+    
+    <!-- Add to Order Button -->
+    <button id="add-to-order">Add to Order</button>
+    
+    <!-- Order Summary -->
+    <div id="order-summary">
+        <h2>Order Summary</h2>
+        <div id="order-items"></div>
+        <p>Subtotal: <span id="subtotal">0</span></p>
+    </div>
+    
+    <!-- Overall Discount -->
+    <input type="number" id="discount" placeholder="Overall Discount %" min="0" max="100">
+    
+    <!-- Total -->
+    <p>Total: <span id="total">0</span></p>
+    
+    <!-- Received Amount -->
+    <input type="number" id="received-amount" placeholder="Received Amount" min="0">
+    
+    <!-- Payment Method -->
+    <select id="payment-method">
+        <option value="">Select Payment Method</option>
+        <option value="cash">Cash</option>
+        <option value="bkash">bKash</option>
+        <option value="card">Card</option>
+    </select>
+    
+    <!-- Remarks -->
+    <textarea id="remarks" placeholder="Enter any remarks (optional)"></textarea>
+    
+    <!-- Confirm Order -->
+    <button id="confirm-order">Confirm Order</button>
+    
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZbe5BC1Dd1sMMe30TVpuSQa7xwqa2i5TGhSc3vWSNx2TCQpE6D-bNIDl9DYsEjy9Y/exec';
+        let products = [];
+        let categoryMap = {};
+        let orderItems = [];
+        let dataLoaded = false;
+
+        // Fetch products
+        fetch(SCRIPT_URL)
+            .then(response => response.json())
+            .then(data => {
+                products = data;
+                categoryMap = {};
+                products.forEach(p => {
+                    if (!categoryMap[p.category]) {
+                        categoryMap[p.category] = {};
+                    }
+                    if (!categoryMap[p.category][p.name]) {
+                        categoryMap[p.category][p.name] = [];
+                    }
+                    categoryMap[p.category][p.name].push({size: p.size, price: p.price});
+                });
+                dataLoaded = true;
+            })
+            .catch(error => {
+                console.error('Error fetching products:', error);
+                dataLoaded = true;
+            });
+
+        // Category search
+        document.getElementById('category-search').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const resultsDiv = document.getElementById('category-results');
+            if (!dataLoaded) {
+                resultsDiv.innerHTML = '<div>Loading categories...</div>';
+                return;
+            }
+            const matchingCategories = Object.keys(categoryMap).filter(cat => cat.toLowerCase().includes(searchTerm));
+            resultsDiv.innerHTML = matchingCategories.length > 0 
+                ? matchingCategories.map(cat => `<div onclick="selectCategory('${cat}')">${cat}</div>`).join('')
+                : '<div>No matching categories found</div>';
+        });
+
+        // Select category
+        function selectCategory(category) {
+            document.getElementById('category-search').value = category;
+            document.getElementById('category-results').innerHTML = '';
+            document.getElementById('product-search').disabled = false;
+            document.getElementById('product-search').focus();
+        }
+
+        // Product search
+        document.getElementById('product-search').addEventListener('input', function() {
+            const category = document.getElementById('category-search').value;
+            const searchTerm = this.value.toLowerCase();
+            const resultsDiv = document.getElementById('search-results');
+            if (!category || !dataLoaded) return;
+            const productsInCategory = categoryMap[category];
+            const matchingProducts = Object.keys(productsInCategory).filter(name => name.toLowerCase().includes(searchTerm));
+            resultsDiv.innerHTML = matchingProducts.length > 0 
+                ? matchingProducts.map(name => `<div onclick="selectProduct('${name}')">${name}</div>`).join('')
+                : '<div>No matching products found</div>';
+        });
+
+        // Select product
+        function selectProduct(name) {
+            document.getElementById('product-search').value = name;
+            document.getElementById('search-results').innerHTML = '';
+            const category = document.getElementById('category-search').value;
+            const sizes = categoryMap[category][name];
+            const sizeSelect = document.getElementById('size-select');
+            sizeSelect.innerHTML = '<option value="">Select Size</option>' + 
+                sizes.map(size => `<option value="${size.size}" data-price="${size.price}">${size.size} - ${size.price}</option>`).join('');
+        }
+
+        // Add to order
+        document.getElementById('add-to-order').addEventListener('click', function() {
+            const category = document.getElementById('category-search').value;
+            const productName = document.getElementById('product-search').value;
+            const sizeSelect = document.getElementById('size-select');
+            const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+            const size = selectedOption.value;
+            const price = parseFloat(selectedOption.getAttribute('data-price'));
+            const itemDiscount = parseFloat(document.getElementById('item-discount').value) || 0;
+            if (!category || !productName || !size) {
+                alert('Please select category, product, and size.');
+                return;
+            }
+            const discountedPrice = price * (1 - itemDiscount/100);
+            orderItems.push({category, productName, size, price, itemDiscount, discountedPrice});
+            updateOrderSummary();
+            document.getElementById('item-discount').value = '';
+            document.getElementById('size-select').value = '';
+            document.getElementById('product-search').value = '';
+        });
+
+        // Update order summary
+        function updateOrderSummary() {
+            const orderItemsDiv = document.getElementById('order-items');
+            orderItemsDiv.innerHTML = orderItems.map((item, index) => `
+                <div class="order-item">
+                    ${item.category} - ${item.productName}, ${item.size} - 
+                    ${item.itemDiscount > 0 ? 
+                        `${item.price} (${item.itemDiscount}% off = ${item.discountedPrice.toFixed(2)})` : 
+                        item.price}
+                    <button class="remove-btn" onclick="removeItem(${index})">Remove</button>
+                </div>`).join('');
+            const subtotal = orderItems.reduce((sum, item) => sum + item.discountedPrice, 0);
+            document.getElementById('subtotal').textContent = subtotal.toFixed(2);
+            updateTotal();
+        }
+
+        // Remove item
+        function removeItem(index) {
+            orderItems.splice(index, 1);
+            updateOrderSummary();
+        }
+
+        // Auto-update total
+        document.getElementById('discount').addEventListener('input', updateTotal);
+        document.getElementById('received-amount').addEventListener('input', updateTotal);
+
+        function updateTotal() {
+            const subtotal = parseFloat(document.getElementById('subtotal').textContent);
+            const discountPercent = parseFloat(document.getElementById('discount').value) || 0;
+            const discountAmount = subtotal * (discountPercent / 100);
+            const total = subtotal - discountAmount;
+            document.getElementById('total').textContent = total.toFixed(2);
+        }
+
+        // Confirm order with loading state
+        document.getElementById('confirm-order').addEventListener('click', function() {
+            const paymentMethod = document.getElementById('payment-method').value;
+            if (orderItems.length === 0 || !paymentMethod) {
+                alert('Please add products and select payment method.');
+                return;
+            }
+            
+            // Show loading state
+            this.disabled = true;
+            this.textContent = 'Submitting...';
+            
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+            const total = parseFloat(document.getElementById('total').textContent);
+            const receivedAmount = parseFloat(document.getElementById('received-amount').value) || 0;
+            const remarks = document.getElementById('remarks').value;
+            const data = {
+                products: orderItems.map(item => ({
+                    category: item.category,
+                    productName: item.productName,
+                    size: item.size,
+                    price: item.price,
+                    itemDiscount: item.itemDiscount,
+                    discountedPrice: item.discountedPrice
+                })),
+                overallDiscount: discount,
+                total: total,
+                receivedAmount: receivedAmount,
+                paymentMethod: paymentMethod,
+                remarks: remarks
+            };
+            
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                alert('Order ' + result.orderNumber + ' created successfully!');
+                resetForm();
+                // Reset button state after success
+                this.disabled = false;
+                this.textContent = 'Confirm Order';
+            })
+            .catch(error => {
+                console.error('Error submitting order:', error);
+                alert('Error submitting order. Please try again.');
+                // Reset button state on error
+                this.disabled = false;
+                this.textContent = 'Confirm Order';
+            });
+        });
+
+        // Reset form function
+        function resetForm() {
+            orderItems = [];
+            document.getElementById('order-items').innerHTML = '';
+            document.getElementById('subtotal').textContent = '0';
+            document.getElementById('discount').value = '';
+            document.getElementById('total').textContent = '0';
+            document.getElementById('received-amount').value = '';
+            document.getElementById('payment-method').value = '';
+            document.getElementById('category-search').value = '';
+            document.getElementById('product-search').value = '';
+            document.getElementById('product-search').disabled = true;
+            document.getElementById('size-select').innerHTML = '<option value="">Select Size</option>';
+            document.getElementById('item-discount').value = '';
+            document.getElementById('remarks').value = '';
+        }
+    </script>
+</body>
+</html>
